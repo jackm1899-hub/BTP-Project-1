@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 export default function ARViewer({ product }) {
   const [loading, setLoading] = useState(true);
+  const viewerRef = useRef(null);
   const isAndroid = navigator.userAgent.toLowerCase().includes('android');
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isMobile = isAndroid || isIOS;
@@ -10,6 +11,29 @@ export default function ARViewer({ product }) {
     furniture: '🛋️', electronics: '📺', fashion: '👗', toys: '🎮', other: '🌟'
   };
   const emoji = categoryEmojis[product.category] || '📦';
+
+  // model-viewer is a Web Component — React synthetic onLoad/onError
+  // don't fire on custom elements. Attach native DOM listeners instead.
+  useEffect(() => {
+    const mv = viewerRef.current;
+    if (!mv) return;
+
+    const handleLoad = () => setLoading(false);
+    const handleError = () => setLoading(false);
+
+    mv.addEventListener('load', handleLoad);
+    mv.addEventListener('error', handleError);
+
+    return () => {
+      mv.removeEventListener('load', handleLoad);
+      mv.removeEventListener('error', handleError);
+    };
+  }, [product.modelPath]);
+
+  // Reset loading state when product changes
+  useEffect(() => {
+    setLoading(true);
+  }, [product.modelPath]);
 
   return (
     <div style={{
@@ -27,14 +51,16 @@ export default function ARViewer({ product }) {
 
       {/* Viewer */}
       <div style={{ position: 'relative', height: isMobile ? 350 : 500, background: 'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)' }}>
+        {/* Loading overlay — pointerEvents:none so model-viewer stays interactive underneath */}
         {loading && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, zIndex: 1 }}>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, zIndex: 1, pointerEvents: 'none' }}>
             <div style={{ fontSize: 64 }}>{emoji}</div>
             <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>Loading 3D Model...</div>
             <div style={{ width: 40, height: 40, border: '3px solid #333', borderTopColor: '#FF4500', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
           </div>
         )}
         <model-viewer
+          ref={viewerRef}
           src={product.modelPath}
           alt={product.name}
           ar
@@ -43,8 +69,6 @@ export default function ARViewer({ product }) {
           auto-rotate
           shadow-intensity="1"
           style={{ width: '100%', height: '100%', background: 'transparent' }}
-          onLoad={() => setLoading(false)}
-          onError={() => setLoading(false)}
         >
           {/* Fallback slot */}
           <div slot="poster" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', flexDirection: 'column', gap: 12 }}>
